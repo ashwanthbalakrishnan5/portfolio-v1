@@ -8,7 +8,7 @@ export const website = "ashwanthbk.com"
 export const githubUsername = "ashwanthbalakrishnan5"
 
 // Professional Summary
-export const summary = "Software developer seeking Summer 2026 internship. Built production applications serving 1500+ users with systems handling 1M+ records at sub-500ms performance. Open-source contributor proficient in Django, React, AWS, and Kubernetes, with expertise in cloud infrastructure and DevOps automation."
+export const summary = "Software developer seeking Summer 2026 internship. Built production applications serving 10,000+ users with systems handling 1M+ records at sub-500ms performance. Open-source contributor proficient in Django, React, AWS, and Kubernetes, with expertise in cloud infrastructure and DevOps automation."
 
 // Social Media Links
 export const socialMedia = [

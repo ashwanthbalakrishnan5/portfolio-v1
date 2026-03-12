@@ -1,18 +1,39 @@
+import { motion } from 'framer-motion'
 import { name } from '../data'
 
 function Footer() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="bg-dark-800 border-t border-white/10">
-      <div className="container-custom px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          <p className="text-gray-400 text-sm">
-            © {currentYear} {name}. All rights reserved.
+    <footer className="relative">
+      {/* Gradient line separator */}
+      <div className="h-px bg-gradient-to-r from-transparent via-violet/40 to-transparent" />
+
+      <div className="py-12 pb-24 px-6">
+        <div className="container-custom flex flex-col items-center gap-4 text-center">
+          {/* Animated logo text */}
+          <motion.p
+            className="font-heading text-lg font-semibold gradient-text"
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.2 }}
+          >
+            {name}
+          </motion.p>
+
+          <p className="text-fg-dim text-sm">
+            &copy; {currentYear}. Crafted with precision & passion.
           </p>
-          <p className="text-gray-500 text-sm mt-2 md:mt-0">
-            Built with React, TypeScript & Tailwind CSS
-          </p>
+
+          <div className="flex items-center gap-2 text-fg-dim/40 text-xs font-mono">
+            <span className="w-1 h-1 rounded-full bg-violet/30" />
+            <span>React</span>
+            <span className="w-1 h-1 rounded-full bg-cyan/30" />
+            <span>TypeScript</span>
+            <span className="w-1 h-1 rounded-full bg-violet/30" />
+            <span>Tailwind CSS</span>
+            <span className="w-1 h-1 rounded-full bg-cyan/30" />
+            <span>Framer Motion</span>
+          </div>
         </div>
       </div>
     </footer>
