@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { ExternalLink, Star, Github } from 'lucide-react'
 import { projects } from '../data'
@@ -18,28 +18,29 @@ interface ProjectCardProps {
 }
 
 function ProjectCard({ project, index }: ProjectCardProps) {
-  const [tiltX, setTiltX] = useState(0)
-  const [tiltY, setTiltY] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
 
+  // Apply tilt directly to DOM to avoid React re-renders on every mouse move
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect()
+      const el = cardRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
       const centerX = rect.width / 2
       const centerY = rect.height / 2
       const rotateX = ((y - centerY) / centerY) * -6
       const rotateY = ((x - centerX) / centerX) * 6
-      setTiltX(rotateY)
-      setTiltY(rotateX)
+      el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`
     },
     []
   )
 
   const handleMouseLeave = useCallback(() => {
-    setTiltX(0)
-    setTiltY(0)
+    const el = cardRef.current
+    if (el) el.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)'
     setIsHovered(false)
   }, [])
 
@@ -55,11 +56,12 @@ function ProjectCard({ project, index }: ProjectCardProps) {
       transition={{ duration: 0.6, delay: index * 0.12, ease: [0.16, 1, 0.3, 1] }}
     >
       <div
+        ref={cardRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onMouseEnter={handleMouseEnter}
         style={{
-          transform: `perspective(1000px) rotateX(${tiltY}deg) rotateY(${tiltX}deg)`,
+          transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)',
           transition: isHovered ? 'transform 0.1s ease-out, box-shadow 0.5s ease' : 'transform 0.4s ease-out, box-shadow 0.5s ease',
           boxShadow: isHovered
             ? '0 0 40px rgba(124, 58, 237, 0.08), 0 0 80px rgba(6, 182, 212, 0.04)'

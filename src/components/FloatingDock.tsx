@@ -122,20 +122,21 @@ function FloatingDock() {
   const [isVisible, setIsVisible] = useState(false);
 
   // Track scroll position to show/hide the dock and detect active section
+  // Uses rAF throttling to avoid layout thrashing on every scroll event
   useEffect(() => {
     const sectionIds = navItems.map((item) => item.sectionId);
     const sectionElements: (HTMLElement | null)[] = sectionIds.map((id) =>
       document.getElementById(id)
     );
 
-    const handleScroll = () => {
+    let ticking = false;
+
+    const updateScroll = () => {
       const scrollY = window.scrollY;
       const viewportHeight = window.innerHeight;
 
-      // Show dock only after scrolling past 100vh
       setIsVisible(scrollY > viewportHeight);
 
-      // Determine active section based on which section is most in view
       let currentSection = "hero";
       const scrollMid = scrollY + viewportHeight / 2;
 
@@ -148,9 +149,17 @@ function FloatingDock() {
       }
 
       setActiveSection(currentSection);
+      ticking = false;
     };
 
-    handleScroll();
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(updateScroll);
+        ticking = true;
+      }
+    };
+
+    updateScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);

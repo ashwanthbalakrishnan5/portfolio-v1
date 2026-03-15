@@ -1,9 +1,11 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 
 const SPOTLIGHT_RADIUS = 250
 const SPOTLIGHT_COLOR = { r: 124, g: 58, b: 237 } // violet
 const SPOTLIGHT_OPACITY = 0.1
 const LERP_FACTOR = 0.08
+// Stop rendering when the cursor position converges within this threshold
+const IDLE_THRESHOLD = 0.5
 
 function SpotlightCursor() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -12,8 +14,7 @@ function SpotlightCursor() {
   const visibleRef = useRef(0) // 0 = hidden, 1 = fully visible
   const animationRef = useRef<number>(0)
   const prefersReducedMotion = useRef(false)
-
-  const lerp = useCallback((a: number, b: number, t: number) => a + (b - a) * t, [])
+  const currentOpacityRef = useRef(0)
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -37,14 +38,15 @@ function SpotlightCursor() {
     let height = window.innerHeight
 
     const setCanvasSize = () => {
-      const dpr = window.devicePixelRatio || 1
+      // Cap DPR at 2
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
       width = window.innerWidth
       height = window.innerHeight
       canvas.width = width * dpr
       canvas.height = height * dpr
       canvas.style.width = `${width}px`
       canvas.style.height = `${height}px`
-      ctx.scale(dpr, dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
 
     setCanvasSize()
@@ -66,32 +68,37 @@ function SpotlightCursor() {
     }
 
     const draw = () => {
-      ctx.clearRect(0, 0, width, height)
-
-      if (prefersReducedMotion.current) {
+      if (prefersReducedMotion.current || document.hidden) {
         animationRef.current = requestAnimationFrame(draw)
         return
       }
 
-      const lerpSpeed = LERP_FACTOR
-      currentRef.current.x = lerp(currentRef.current.x, mouseRef.current.x, lerpSpeed)
-      currentRef.current.y = lerp(currentRef.current.y, mouseRef.current.y, lerpSpeed)
+      const cur = currentRef.current
+      const mouse = mouseRef.current
 
-      // Fade opacity based on visibility
+      cur.x += (mouse.x - cur.x) * LERP_FACTOR
+      cur.y += (mouse.y - cur.y) * LERP_FACTOR
+
+      // Fade opacity
       const targetOpacity = visibleRef.current === 1 ? SPOTLIGHT_OPACITY : 0
-      const currentOpacity = parseFloat(canvas.dataset.opacity || '0')
-      const nextOpacity = lerp(currentOpacity, targetOpacity, 0.05)
-      canvas.dataset.opacity = String(nextOpacity)
+      const nextOpacity = currentOpacityRef.current + (targetOpacity - currentOpacityRef.current) * 0.05
+      currentOpacityRef.current = nextOpacity
+
+      // Skip drawing if fully faded and converged (idle state)
+      const dx = Math.abs(mouse.x - cur.x)
+      const dy = Math.abs(mouse.y - cur.y)
+      if (nextOpacity < 0.001 && dx < IDLE_THRESHOLD && dy < IDLE_THRESHOLD) {
+        animationRef.current = requestAnimationFrame(draw)
+        return
+      }
+
+      ctx.clearRect(0, 0, width, height)
 
       if (nextOpacity > 0.001) {
         const { r, g, b } = SPOTLIGHT_COLOR
         const gradient = ctx.createRadialGradient(
-          currentRef.current.x,
-          currentRef.current.y,
-          0,
-          currentRef.current.x,
-          currentRef.current.y,
-          SPOTLIGHT_RADIUS
+          cur.x, cur.y, 0,
+          cur.x, cur.y, SPOTLIGHT_RADIUS
         )
         gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${nextOpacity})`)
         gradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${nextOpacity * 0.6})`)
@@ -105,14 +112,10 @@ function SpotlightCursor() {
       animationRef.current = requestAnimationFrame(draw)
     }
 
-    const handleResize = () => {
-      setCanvasSize()
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mousemove', handleMouseMove, { passive: true })
     document.addEventListener('mouseleave', handleMouseLeave)
     document.addEventListener('mouseenter', handleMouseEnter)
-    window.addEventListener('resize', handleResize)
+    window.addEventListener('resize', setCanvasSize)
 
     animationRef.current = requestAnimationFrame(draw)
 
@@ -120,10 +123,10 @@ function SpotlightCursor() {
       window.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseleave', handleMouseLeave)
       document.removeEventListener('mouseenter', handleMouseEnter)
-      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('resize', setCanvasSize)
       cancelAnimationFrame(animationRef.current)
     }
-  }, [lerp])
+  }, [])
 
   return (
     <canvas

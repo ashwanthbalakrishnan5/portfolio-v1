@@ -38,7 +38,7 @@ const AURORA_BLOBS = [
       rotate: [0, 45, -20, 30, 0],
     },
     duration: 20,
-    style: { top: '10%', left: '15%', filter: 'blur(70px)' },
+    style: { top: '10%', left: '15%', filter: 'blur(40px)', willChange: 'transform' } as React.CSSProperties,
   },
   {
     className: 'w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-cyan/20 rounded-[60%_40%_30%_70%/60%_30%_70%_40%]',
@@ -49,7 +49,7 @@ const AURORA_BLOBS = [
       rotate: [0, -30, 60, -45, 0],
     },
     duration: 24,
-    style: { bottom: '10%', right: '10%', filter: 'blur(80px)' },
+    style: { bottom: '10%', right: '10%', filter: 'blur(45px)', willChange: 'transform' } as React.CSSProperties,
   },
   {
     className: 'w-[350px] h-[350px] md:w-[500px] md:h-[500px] bg-indigo-600/15 rounded-[50%_50%_40%_60%/40%_60%_50%_50%]',
@@ -60,18 +60,7 @@ const AURORA_BLOBS = [
       rotate: [0, 60, -40, 20, 0],
     },
     duration: 18,
-    style: { top: '40%', left: '50%', filter: 'blur(65px)' },
-  },
-  {
-    className: 'w-[300px] h-[300px] md:w-[450px] md:h-[450px] bg-violet-dark/25 rounded-[40%_60%_50%_50%/50%_40%_60%_50%]',
-    animate: {
-      x: [0, -80, 100, -50, 0],
-      y: [0, 60, -80, 50, 0],
-      scale: [0.9, 1.1, 1, 1.2, 0.9],
-      rotate: [0, -50, 35, -60, 0],
-    },
-    duration: 22,
-    style: { top: '60%', left: '20%', filter: 'blur(75px)' },
+    style: { top: '40%', left: '50%', filter: 'blur(35px)', willChange: 'transform' } as React.CSSProperties,
   },
 ]
 

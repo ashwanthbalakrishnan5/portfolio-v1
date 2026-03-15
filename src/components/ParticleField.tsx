@@ -9,6 +9,14 @@ interface Particle {
   opacity: number
 }
 
+// Spatial grid cell size — matches connection distance for efficient lookups
+const CELL_SIZE = 120
+const CONNECTION_DIST = 120
+const CONNECTION_DIST_SQ = CONNECTION_DIST * CONNECTION_DIST
+const MOUSE_DIST = 200
+const MOUSE_DIST_SQ = MOUSE_DIST * MOUSE_DIST
+const MAX_PARTICLES = 40
+
 function ParticleField() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number>(0)
@@ -17,7 +25,7 @@ function ParticleField() {
   const reducedMotion = useRef(false)
 
   const initParticles = useCallback((width: number, height: number) => {
-    const count = Math.min(Math.floor((width * height) / 15000), 80)
+    const count = Math.min(Math.floor((width * height) / 25000), MAX_PARTICLES)
     particlesRef.current = Array.from({ length: count }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
@@ -39,13 +47,14 @@ function ParticleField() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    // Cap DPR at 2 to avoid rendering 4x pixels on retina displays
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = window.innerWidth * dpr
       canvas.height = window.innerHeight * dpr
       canvas.style.width = `${window.innerWidth}px`
       canvas.style.height = `${window.innerHeight}px`
-      ctx.scale(dpr, dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       initParticles(window.innerWidth, window.innerHeight)
     }
 
@@ -53,11 +62,18 @@ function ParticleField() {
     window.addEventListener('resize', resize)
 
     const handleMouseMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY }
+      mouseRef.current.x = e.clientX
+      mouseRef.current.y = e.clientY
     }
-    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mousemove', handleMouseMove, { passive: true })
 
     const animate = () => {
+      // Skip when tab is hidden
+      if (document.hidden) {
+        animationRef.current = requestAnimationFrame(animate)
+        return
+      }
+
       const w = window.innerWidth
       const h = window.innerHeight
       ctx.clearRect(0, 0, w, h)
@@ -65,57 +81,114 @@ function ParticleField() {
       const particles = particlesRef.current
       const mouse = mouseRef.current
 
-      for (const p of particles) {
+      // Build spatial grid
+      const cols = Math.ceil(w / CELL_SIZE) + 1
+      const rows = Math.ceil(h / CELL_SIZE) + 1
+      const grid: number[][] = new Array(cols * rows)
+
+      // Update positions and assign to grid
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i]
         p.x += p.vx
         p.y += p.vy
 
-        // Wrap around
         if (p.x < 0) p.x = w
         if (p.x > w) p.x = 0
         if (p.y < 0) p.y = h
         if (p.y > h) p.y = 0
 
-        // Draw particle
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(124, 58, 237, ${p.opacity})`
-        ctx.fill()
+        const col = Math.floor(p.x / CELL_SIZE)
+        const row = Math.floor(p.y / CELL_SIZE)
+        const cellIdx = row * cols + col
+        if (!grid[cellIdx]) grid[cellIdx] = []
+        grid[cellIdx].push(i)
       }
 
-      // Draw connections
-      const connectionDistance = 120
-      const mouseDistance = 200
+      // Batch all particle dots into one path
+      ctx.fillStyle = 'rgba(124, 58, 237, 0.3)'
+      ctx.beginPath()
+      for (const p of particles) {
+        ctx.moveTo(p.x + p.radius, p.y)
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
+      }
+      ctx.fill()
 
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x
-          const dy = particles[i].y - particles[j].y
-          const dist = Math.sqrt(dx * dx + dy * dy)
+      // Draw connections using spatial grid — only check neighboring cells
+      ctx.lineWidth = 0.5
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const cellIdx = row * cols + col
+          const cell = grid[cellIdx]
+          if (!cell) continue
 
-          if (dist < connectionDistance) {
-            const alpha = (1 - dist / connectionDistance) * 0.08
-            ctx.beginPath()
-            ctx.moveTo(particles[i].x, particles[i].y)
-            ctx.lineTo(particles[j].x, particles[j].y)
-            ctx.strokeStyle = `rgba(124, 58, 237, ${alpha})`
-            ctx.lineWidth = 0.5
-            ctx.stroke()
+          // Check this cell + 4 neighbors (right, below, below-right, below-left)
+          const neighbors = [
+            cellIdx,
+            col + 1 < cols ? cellIdx + 1 : -1,
+            row + 1 < rows ? cellIdx + cols : -1,
+            col + 1 < cols && row + 1 < rows ? cellIdx + cols + 1 : -1,
+            col - 1 >= 0 && row + 1 < rows ? cellIdx + cols - 1 : -1,
+          ]
+
+          for (const ni of neighbors) {
+            if (ni < 0) continue
+            const neighborCell = grid[ni]
+            if (!neighborCell) continue
+
+            const isSameCell = ni === cellIdx
+            for (let a = 0; a < cell.length; a++) {
+              const startJ = isSameCell ? a + 1 : 0
+              for (let b = startJ; b < neighborCell.length; b++) {
+                const pi = particles[cell[a]]
+                const pj = particles[neighborCell[b]]
+                const dx = pi.x - pj.x
+                const dy = pi.y - pj.y
+                const distSq = dx * dx + dy * dy
+
+                if (distSq < CONNECTION_DIST_SQ) {
+                  const dist = Math.sqrt(distSq)
+                  const alpha = (1 - dist / CONNECTION_DIST) * 0.08
+                  ctx.strokeStyle = `rgba(124, 58, 237, ${alpha})`
+                  ctx.beginPath()
+                  ctx.moveTo(pi.x, pi.y)
+                  ctx.lineTo(pj.x, pj.y)
+                  ctx.stroke()
+                }
+              }
+            }
           }
         }
+      }
 
-        // Mouse interaction
-        const mdx = particles[i].x - mouse.x
-        const mdy = particles[i].y - mouse.y
-        const mDist = Math.sqrt(mdx * mdx + mdy * mdy)
+      // Mouse connections — only check particles near mouse
+      const mCol = Math.floor(mouse.x / CELL_SIZE)
+      const mRow = Math.floor(mouse.y / CELL_SIZE)
+      const searchRadius = Math.ceil(MOUSE_DIST / CELL_SIZE)
 
-        if (mDist < mouseDistance) {
-          const alpha = (1 - mDist / mouseDistance) * 0.15
-          ctx.beginPath()
-          ctx.moveTo(particles[i].x, particles[i].y)
-          ctx.lineTo(mouse.x, mouse.y)
-          ctx.strokeStyle = `rgba(6, 182, 212, ${alpha})`
-          ctx.lineWidth = 0.5
-          ctx.stroke()
+      for (let dr = -searchRadius; dr <= searchRadius; dr++) {
+        for (let dc = -searchRadius; dc <= searchRadius; dc++) {
+          const r = mRow + dr
+          const c = mCol + dc
+          if (r < 0 || r >= rows || c < 0 || c >= cols) continue
+          const cell = grid[r * cols + c]
+          if (!cell) continue
+
+          for (const idx of cell) {
+            const p = particles[idx]
+            const mdx = p.x - mouse.x
+            const mdy = p.y - mouse.y
+            const mDistSq = mdx * mdx + mdy * mdy
+
+            if (mDistSq < MOUSE_DIST_SQ) {
+              const mDist = Math.sqrt(mDistSq)
+              const alpha = (1 - mDist / MOUSE_DIST) * 0.15
+              ctx.strokeStyle = `rgba(6, 182, 212, ${alpha})`
+              ctx.beginPath()
+              ctx.moveTo(p.x, p.y)
+              ctx.lineTo(mouse.x, mouse.y)
+              ctx.stroke()
+            }
+          }
         }
       }
 
